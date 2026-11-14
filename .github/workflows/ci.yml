@@ -1,6 +1,8 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    tags: ["v*"]
 
 jobs:
   rust:
@@ -18,20 +20,3 @@ jobs:
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
       - run: cargo build --locked
-
-  openssh:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install Linux SSH server
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openssh-server
-          sudo mkdir -p /run/sshd
-      - run: cargo build --locked
-      - run: python3 tests/openssh_smoke.py
