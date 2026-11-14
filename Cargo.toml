@@ -1,0 +1,26 @@
+[package]
+name = "ssh-mcp"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+description = "Local stdio MCP tools over persistent SSH connections"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+glob = "0.3"
+hmac = "0.12"
+openssh-sftp-client = { version = "0.15", default-features = false }
+rmcp = { version = "3.10", features = ["server", "macros", "transport-io"] }
+russh = { version = "0.65", default-features = false, features = ["ring", "rsa"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+sha1 = "0.10"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
+
