@@ -49,7 +49,7 @@ pub struct Session {
 
 impl Session {
     pub fn info(&self) -> Value {
-        json!({"session_id":self.id,"alias":self.alias,"hostname":self.hostname,"user":self.user,"port":self.port,"home":self.home,"connected":!self.handle.is_closed()})
+        json!({"session_id":self.id,"alias":self.alias,"hostname":self.hostname,"user":self.user,"port":self.port,"home":self.home,"shell":if crate::files::windows_home(&self.home) { "powershell" } else { "posix" },"connected":!self.handle.is_closed()})
     }
 
     async fn close(&self) {
@@ -207,8 +207,8 @@ impl ConnectionManager {
                 .context("Remote home path is not UTF-8")?
                 .to_owned();
             ensure!(
-                home.starts_with('/'),
-                "The remote server must use Unix absolute paths"
+                home.starts_with('/') || crate::files::windows_home(&home),
+                "Remote home must be an absolute path"
             );
             Ok((Arc::new(sftp), home))
         }

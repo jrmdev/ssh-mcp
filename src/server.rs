@@ -92,6 +92,7 @@ impl SshMcp {
                 "session_id": session.id, "alias": session.alias,
                 "hostname": session.hostname, "user": session.user,
                 "port": session.port, "home": session.home,
+                "shell": if crate::files::windows_home(&session.home) { "powershell" } else { "posix" },
             }))
         })
         .await
@@ -168,7 +169,7 @@ impl SshMcp {
     }
 
     #[tool(
-        description = "Run a noninteractive POSIX shell command over the persistent SSH connection. Returns a job ID; poll with get_job. cwd and environment are per-command. Output and job state live only in local memory."
+        description = "Run a noninteractive command using a POSIX shell on Unix or Windows PowerShell on Windows. Returns a job ID; poll with get_job. cwd and environment are per-command. Output and job state live only in local memory."
     )]
     async fn execute_command(
         &self,

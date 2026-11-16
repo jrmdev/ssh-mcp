@@ -4,7 +4,7 @@ ssh-mcp is a local [Model Context Protocol (MCP)](https://modelcontextprotocol.i
 
 ## Install
 
-You need Rust 1.89 or later to build from source. OpenSSH (`ssh`) must be available on the computer running the agent. Remote hosts need SSH access, a POSIX shell, and SFTP.
+You need Rust 1.89 or later to build from source. OpenSSH (`ssh`) must be available on the computer running the agent. Remote hosts need SSH access, SFTP, and either a POSIX shell or Windows PowerShell.
 
 ```sh
 git clone https://github.com/jrmdev/ssh-mcp.git
@@ -45,10 +45,10 @@ Call `list_hosts` to see configured aliases, then `connect` with an alias. Use t
 | `upload_file`, `download_file` | Transfer files between your computer and a remote host. |
 | `execute_command`, `get_job`, `cancel_job` | Run a remote shell command, check its output, and request cancellation. |
 
-Tool schemas provide the arguments and options. Remote file paths are literal; relative paths start in the remote home directory. Commands run in a noninteractive POSIX shell. File transfers refuse to overwrite by default, and command output is retained in local memory while the server is running.
+Tool schemas provide the arguments and options. Remote file paths are literal; relative paths start in the remote home directory. Commands run in a noninteractive POSIX shell on Unix and Windows PowerShell on Windows; `connect` reports the shell. Use the corresponding shell syntax. PowerShell may serialize errors as CLIXML, and native program exit codes must be propagated explicitly (for example, `exit $LASTEXITCODE`). File transfers refuse to overwrite by default, and command output is retained in local memory while the server is running.
 
 ## Security and compatibility
 
 Authentication and private-key signing stay on the computer running ssh-mcp; SSH agent forwarding is never requested. Unknown, changed, or revoked host keys are rejected. Only configured authentication is supported; ssh-mcp does not prompt for credentials.
 
-The client can run on Linux, macOS, and Windows. Remote command execution requires a POSIX shell, so Windows hosts are not supported as SSH targets. Standard OpenSSH host settings and chained `ProxyJump` are supported; see your OpenSSH configuration for connection details.
+The client can run on Linux, macOS, and Windows. Windows OpenSSH targets with drive-letter SFTP home paths are supported. Standard OpenSSH host settings and chained `ProxyJump` are supported; see your OpenSSH configuration for connection details.

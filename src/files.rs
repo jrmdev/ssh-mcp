@@ -91,11 +91,22 @@ fn validate_path(path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Remote paths always use Unix separators, even on a Windows client.
+pub fn windows_home(home: &str) -> bool {
+    let path = home.strip_prefix('/').unwrap_or(home).as_bytes();
+    path.len() >= 3 && path[0].is_ascii_alphabetic() && path[1] == b':' && path[2] == b'/'
+}
+
+/// SFTP paths use forward slashes; Windows targets also accept drive paths.
 pub fn remote_path(home: &str, path: &str) -> Result<String> {
     validate_path(path)?;
-    if path.starts_with('/') {
-        Ok(path.to_owned())
+    let path = if windows_home(home) {
+        path.replace('\\', "/")
+    } else {
+        path.to_owned()
+    };
+    let drive_absolute = windows_home(home) && windows_home(&path);
+    if path.starts_with('/') || drive_absolute {
+        Ok(path)
     } else {
         Ok(format!("{}/{path}", home.trim_end_matches('/')))
     }
@@ -610,6 +621,14 @@ mod tests {
         assert_eq!(remote_path("/home/u", "a\\b").unwrap(), "/home/u/a\\b");
         assert_eq!(remote_path("/home/u", "/tmp/a").unwrap(), "/tmp/a");
         assert_eq!(remote_path("/", "a").unwrap(), "/a");
+        assert_eq!(
+            remote_path("/C:/Users/u", r"D:\work\a").unwrap(),
+            "D:/work/a"
+        );
+        assert_eq!(
+            remote_path("/C:/Users/u", r"dir\a").unwrap(),
+            "/C:/Users/u/dir/a"
+        );
         assert_eq!(remote_parent("/a").unwrap(), ("/", "a"));
         assert!(remote_path("/home/u", "bad\0path").is_err());
         assert!(remote_parent("/tmp/").is_err());

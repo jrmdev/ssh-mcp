@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, ensure};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use rmcp::schemars::{self, JsonSchema};
 use russh::{ChannelMsg, Sig};
 use serde::Deserialize;
@@ -385,11 +386,7 @@ fn build_command(home: &str, input: &ExecuteCommand) -> Result<String> {
         input.stdin.as_ref().is_none_or(|s| s.len() <= BUFFER_LIMIT),
         "stdin exceeds 1 MiB"
     );
-    let cwd = match input.cwd.as_deref() {
-        Some(path) if path.starts_with('/') => path.to_owned(),
-        Some(path) => format!("{}/{path}", home.trim_end_matches('/')),
-        None => home.to_owned(),
-    };
+    let cwd = crate::files::remote_path(home, input.cwd.as_deref().unwrap_or("."))?;
     ensure!(cwd.len() <= BUFFER_LIMIT, "cwd exceeds 1 MiB");
     ensure!(!cwd.contains('\0'), "cwd contains NUL");
     let mut script = String::new();
@@ -409,7 +406,28 @@ fn build_command(home: &str, input: &ExecuteCommand) -> Result<String> {
             "invalid environment variable name"
         );
         ensure!(!value.contains('\0'), "environment value contains NUL");
-        script.push_str(&format!("export {name}={}; ", quote(value)));
+        if crate::files::windows_home(home) {
+            script.push_str(&format!(
+                "[Environment]::SetEnvironmentVariable('{}', '{}'); ",
+                name,
+                value.replace('\'', "''")
+            ));
+        } else {
+            script.push_str(&format!("export {name}={}; ", quote(value)));
+        }
+    }
+    if crate::files::windows_home(home) {
+        let cwd = cwd.strip_prefix('/').unwrap_or(&cwd);
+        script.push_str(&format!(
+            "Set-Location -LiteralPath '{}' -ErrorAction Stop; ",
+            cwd.replace('\'', "''")
+        ));
+        script.push_str(&input.command);
+        let bytes: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        return Ok(format!(
+            "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {}",
+            STANDARD.encode(bytes)
+        ));
     }
     script.push_str(&format!(
         "cd -- {} && exec sh -c {}",
@@ -632,6 +650,27 @@ mod tests {
         request.env.clear();
         request.env.insert("_VALID_1".into(), "v".into());
         assert!(build_command("/home/user", &request).is_ok());
+    }
+
+    #[test]
+    fn windows_command_encodes_literal_environment_and_directory() {
+        let mut request = input("Write-Output $env:TEST_VALUE");
+        request.cwd = Some("D:/O'Brien".into());
+        request
+            .env
+            .insert("TEST_VALUE".into(), "a'; Remove-Item x; '".into());
+        let command = build_command("/C:/Users/test", &request).unwrap();
+        let bytes = STANDARD
+            .decode(command.rsplit_once(' ').unwrap().1)
+            .unwrap();
+        let words: Vec<u16> = bytes
+            .chunks_exact(2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]))
+            .collect();
+        let script = String::from_utf16(&words).unwrap();
+        assert!(script.contains("SetEnvironmentVariable('TEST_VALUE', 'a''; Remove-Item x; ''')"));
+        assert!(script.contains("Set-Location -LiteralPath 'D:/O''Brien'"));
+        assert!(script.ends_with("Write-Output $env:TEST_VALUE"));
     }
 
     #[test]
